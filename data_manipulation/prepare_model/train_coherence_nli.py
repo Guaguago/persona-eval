@@ -16,8 +16,9 @@ EVAL_INTERVAL = 2000
 BATCH_SIZE = 96
 MAX_GRAD_NORM = 1.0
 
-INPUT_MODEL_PATH = './roberta_mnli'
-OUTPUT_MODEL_FILE = 'best_model.bin'
+INPUT_MODEL_PATH = '/apdcephfs/private_chencxu/taiji_inputs/persona_eval/models/roberta_mnli'
+OUTPUT_MODEL_FILE = '/apdcephfs/private_chencxu/taiji_inputs/persona_eval/models/roberta_mnli/best_model.bin'
+
 
 def get_input_examples(data):
     input_examples = []
@@ -25,6 +26,7 @@ def get_input_examples(data):
     for d in data:
         input_examples.append(InputExample(d['pairID'], d['sentence1'], d['sentence2'], label_dict[d['gold_label']]))
     return input_examples
+
 
 def eval_model(model, dev_dataloader, prev_best, step):
     dev_tqdm_data = tqdm(dev_dataloader, desc='Evaluation (step #{})'.format(step))
@@ -49,19 +51,27 @@ def eval_model(model, dev_dataloader, prev_best, step):
         preds = np.argmax(preds, axis=1)
         accuracy = (preds == out_label_ids).astype(np.float32).mean().item()
     if accuracy > prev_best:
-        print('Current model BEATS the previous best model, previous best is {:.3f}, current is {:.3f}'.format(prev_best, accuracy))
+        print(
+            'Current model BEATS the previous best model, previous best is {:.3f}, current is {:.3f}'.format(prev_best,
+                                                                                                             accuracy))
         torch.save(model.state_dict(), OUTPUT_MODEL_FILE)
         prev_best = accuracy
     else:
-        print('Current model CANNOT BEAT the previous best model, previous best is {:.3f}, current is {:.3f}'.format(prev_best, accuracy))
+        print('Current model CANNOT BEAT the previous best model, previous best is {:.3f}, current is {:.3f}'.format(
+            prev_best, accuracy))
     return prev_best
 
-with open('convai_nli_valid.jsonl', 'r', encoding='utf-8') as f:
+
+with open(
+        '/apdcephfs/private_chencxu/taiji_inputs/persona_eval/datasets/InferConvAI_v1.3_jsonl/convai_nli_train_both_revised_no_cands_ctx2_v1.3.jsonl',
+        'r', encoding='utf-8') as f:
     lines = f.readlines()
     train_data = []
     for line in lines:
         train_data.append(json.loads(line.strip()))
-with open('convai_nli_valid.jsonl', 'r', encoding='utf-8') as f:
+with open(
+        '/apdcephfs/private_chencxu/taiji_inputs/persona_eval/datasets/InferConvAI_v1.3_jsonl/convai_nli_valid_both_revised_no_cands_ctx2_v1.3.jsonl',
+        'r', encoding='utf-8') as f:
     lines = f.readlines()
     dev_data = []
     for line in lines:
@@ -79,19 +89,19 @@ if torch.cuda.device_count() > 1:
     model = torch.nn.parallel.DataParallel(model, device_ids=list(range(torch.cuda.device_count())))
 
 train_features = convert_examples_to_features(
-        train_examples,
-        tokenizer,
-        label_list=['0', '1', '2'],
-        max_length=128,
-        output_mode='classification',
-    )
+    train_examples,
+    tokenizer,
+    label_list=['0', '1', '2'],
+    max_length=128,
+    output_mode='classification',
+)
 dev_features = convert_examples_to_features(
-        dev_examples,
-        tokenizer,
-        label_list=['0', '1', '2'],
-        max_length=128,
-        output_mode='classification',
-    )
+    dev_examples,
+    tokenizer,
+    label_list=['0', '1', '2'],
+    max_length=128,
+    output_mode='classification',
+)
 train_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long).to(device)
 train_attention_mask = torch.tensor([f.attention_mask for f in train_features], dtype=torch.long).to(device)
 train_labels = torch.tensor([f.label for f in train_features], dtype=torch.long).to(device)
